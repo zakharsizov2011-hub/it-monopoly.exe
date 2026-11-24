@@ -223,6 +223,10 @@ function ensureGridPositions() {
 
 function buildBoard() {
   ensureGridPositions();
+    // Защита: если BOARD_DATA короче 30 — дополняем заглушками
+  while (BOARD_DATA.length < 30) {
+    BOARD_DATA.push({ name: "—", type: "empty", color: "#21262d", sector: "Служебная" });
+  }
 
   const board = document.getElementById("board");
   board.innerHTML = "";
