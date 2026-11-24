@@ -51,21 +51,18 @@ const BOARD_DATA = [
 ];
 
 const SECTOR_COUNTS = { "Мобильный": 4, "ПК и CPU": 4, "ОС и софт": 3, "Сети": 3, "Бигтех РФ": 3, "БД и ИИ": 3 };
-const SECTOR_COLORS = { "Мобильный": "#1e90ff", "ПК и CPU": "#228b22", "ОС и софт": "#ffcc00", "Сети": "#dc143c", "Бигтех РФ": "#ba55d3", "БД и ИИ": "#00ffff" };
 const PLAYER_COLORS = ["#ff5555", "#4488ff", "#44cc44", "#ffcc44"];
 const PLAYER_MARKERS = ["🔴", "🔵", "🟢", "🟡"];
-const PLAYER_NAMES = ["P1", "P2", "P3", "P4"];
 
 const HOUSE_COST = 100, HOTEL_COST = 300, SKIP_COST = 50;
 const SAVE_KEY = "it_monopoly_save";
 
 // Позиции клеток по периметру 8×8 (30 клеток)
 const GRID_POSITIONS = [];
-for (let i = 0; i < 8; i++) GRID_POSITIONS.push([7 - i, 7]);          // низ: (7,7)→(0,7)
-for (let i = 1; i < 7; i++) GRID_POSITIONS.push([0, 7 - i]);          // лево: (0,6)→(0,1)
-for (let i = 0; i < 8; i++) GRID_POSITIONS.push([i, 0]);              // верх: (0,0)→(7,0)
-for (let i = 1; i < 7; i++) GRID_POSITIONS.push([7, i]);              // право: (7,1)→(7,6)
-// = 30 клеток
+for (let i = 0; i < 8; i++) GRID_POSITIONS.push([7 - i, 7]);
+for (let i = 1; i < 7; i++) GRID_POSITIONS.push([0, 7 - i]);
+for (let i = 0; i < 8; i++) GRID_POSITIONS.push([i, 0]);
+for (let i = 1; i < 7; i++) GRID_POSITIONS.push([7, i]);
 
 const CHANCE_EVENTS = [
   ["💾 Утечка данных в облаке! Штраф: −$150", -150],
@@ -124,9 +121,7 @@ function initMenu() {
       renderPlayerConfig();
     });
   });
-
   renderPlayerConfig();
-
   document.getElementById("start-btn").addEventListener("click", startGame);
   document.getElementById("help-btn").addEventListener("click", showHelp);
 }
@@ -203,8 +198,8 @@ function startGame() {
     animating: false,
     diceValue: 1,
     balanceHistory: Object.fromEntries(players.map(p => [p.id, [1000]])),
-    owners: {},           // cellIdx -> playerId
-    mortgagedCells: {},   // cellIdx -> true
+    owners: {},
+    mortgagedCells: {},
   };
 
   buildBoard();
@@ -221,7 +216,9 @@ function buildBoard() {
 
   for (let idx = 0; idx < 30; idx++) {
     const data = BOARD_DATA[idx];
-    const [col, row] = GRID_POSITIONS[idx];
+    const pos = GRID_POSITIONS[idx];
+    const col = pos[0];
+    const row = pos[1];
     const isService = ["start", "sandbox", "hackathon", "tax"].includes(data.type);
 
     const cell = document.createElement("div");
@@ -245,7 +242,6 @@ function buildBoard() {
     board.appendChild(cell);
   }
 
-  // Центральная панель
   const center = document.createElement("div");
   center.className = "cell";
   center.style.gridColumn = "2 / 8";
@@ -257,14 +253,14 @@ function buildBoard() {
   center.innerHTML = `<div id="center-slot" style="width:100%;height:100%"></div>`;
   board.appendChild(center);
 
-  // Переносим центральную панель внутрь
   const centerPanel = document.querySelector(".center-panel");
-  document.getElementById("center-slot").appendChild(centerPanel);
-  centerPanel.style.maxHeight = "none";
-  centerPanel.style.height = "100%";
+  if (centerPanel) {
+    document.getElementById("center-slot").appendChild(centerPanel);
+    centerPanel.style.maxHeight = "none";
+    centerPanel.style.height = "100%";
+  }
 }
 
-// ==================== ПАНЕЛИ ====================
 function renderPanels() {
   const left = document.getElementById("left-panel");
   const right = document.getElementById("right-panel");
@@ -296,12 +292,10 @@ function updateUI() {
   if (!state) return;
   const cur = state.players[state.currentPlayerIdx];
 
-  // Ход
   const turnInfo = document.getElementById("turn-info");
   turnInfo.textContent = `> T${state.turnNumber} | ${cur.marker} ${cur.name}`;
   turnInfo.style.color = cur.color;
 
-  // Панели
   state.players.forEach((p, i) => {
     const card = document.getElementById(`player-card-${i}`);
     if (!card) return;
@@ -328,21 +322,17 @@ function updateUI() {
       : "—";
   });
 
-  // Клетки
   for (let idx = 0; idx < 30; idx++) {
     const cell = document.getElementById(`cell-${idx}`);
     if (!cell) continue;
     const data = BOARD_DATA[idx];
 
-    // Токены
     const tokensEl = cell.querySelector(".cell-tokens");
     tokensEl.innerHTML = state.players.filter(p => p.pos === idx).map(p => p.marker).join("");
 
-    // Здания
     const b = state.buildings[idx] || { houses: 0, hotels: 0 };
     cell.querySelector(".cell-buildings").textContent = b.hotels > 0 ? "🏨" : (b.houses > 0 ? "🏠" : "");
 
-    // Владелец
     const ownerId = state.owners[idx];
     const ownerEl = cell.querySelector(".cell-owner");
     if (ownerId !== undefined && ownerId !== null) {
@@ -350,7 +340,7 @@ function updateUI() {
       const isM = !!state.mortgagedCells[idx];
       cell.style.borderColor = owner.color;
       cell.style.borderWidth = isM ? "1px" : "3px";
-      cell.style.background = isM ? "#1f1418" : lighten(owner.color, 0.15);
+      cell.style.background = isM ? "#1f1418" : "#1a2129";
       ownerEl.textContent = isM ? `${owner.name} 🔒` : owner.name;
       ownerEl.style.color = owner.color;
     } else {
@@ -363,16 +353,9 @@ function updateUI() {
   }
 }
 
-function lighten(hex, amount) {
-  const c = hex.replace("#", "");
-  const r = Math.min(255, parseInt(c.substr(0, 2), 16) + amount * 255);
-  const g = Math.min(255, parseInt(c.substr(2, 2), 16) + amount * 255);
-  const b = Math.min(255, parseInt(c.substr(4, 2), 16) + amount * 255);
-  return `rgb(${r | 0},${g | 0},${b | 0})`;
-}
-
 // ==================== ЛОГ ====================
 function addLog(msg) {
+  if (!state) return;
   state.gameLog.push(msg);
   if (state.gameLog.length > 100) state.gameLog.shift();
   const log = document.getElementById("log");
@@ -467,7 +450,6 @@ function drawDiceFace(ctx, cx, cy, r, value) {
   ctx.fill();
   ctx.stroke();
 
-  // Блик
   ctx.fillStyle = "#2a3540";
   ctx.fillRect(cx - r + 8, cy - r + 8, 22, 22);
 
@@ -490,9 +472,8 @@ function drawDiceFace(ctx, cx, cy, r, value) {
 
 // ==================== БРОСОК ====================
 function rollDice() {
-  if (state.gameOver || state.animating) return;
+  if (!state || state.gameOver || state.animating) return;
   if (state.players[state.currentPlayerIdx].isAI) return;
-
   document.getElementById("roll-btn").disabled = true;
   document.getElementById("skip-btn").disabled = true;
   state.diceValue = Math.floor(Math.random() * 6) + 1;
@@ -535,7 +516,7 @@ function moveStep(player, current, remaining, passedStart) {
 
 // ==================== ОБРАБОТКА КЛЕТОК ====================
 function handleCell(player, cellIdx) {
-  if (state.gameOver) return;
+  if (!state || state.gameOver) return;
   const cell = BOARD_DATA[cellIdx];
 
   switch (cell.type) {
@@ -578,9 +559,7 @@ function handleCompany(player, cellIdx, cell) {
         const buyback = Math.floor(cell.price * 0.6);
         showModal(`
           <h3>🏦 ВЫКУП</h3>
-          <div class="modal-info">
-            Выкупить ${cell.name} за $${buyback}?
-          </div>
+          <div class="modal-info">Выкупить ${cell.name} за $${buyback}?</div>
           <div class="modal-buttons">
             <button class="btn-primary" id="buyback-yes">[ ВЫКУПИТЬ ]</button>
             <button class="btn-secondary" id="buyback-no">[ ОТМЕНА ]</button>
@@ -629,7 +608,6 @@ function handleCompany(player, cellIdx, cell) {
     addLog(`🏠 ${player.name} на своей ${cell.name}`);
     finishTurn();
   } else {
-    // Чужая
     if (state.blockedCells[cellIdx]) {
       addLog(`⚔️ ${cell.name} под DDoS`);
       finishTurn();
@@ -848,7 +826,8 @@ function showBuildDialog(player, cellIdx, cell, b) {
 }
 
 function handleChance(player) {
-  const [text, delta] = CHANCE_EVENTS[Math.floor(Math.random() * CHANCE_EVENTS.length)];
+  const ev = CHANCE_EVENTS[Math.floor(Math.random() * CHANCE_EVENTS.length)];
+  const text = ev[0], delta = ev[1];
   player.money += delta;
   playSound(delta > 0 ? "money" : "error");
   addLog(`🎴 ${player.name} шанс: ${delta >= 0 ? "+" : ""}${delta}$`);
@@ -861,7 +840,8 @@ function handleChance(player) {
 }
 
 function handleTreasury(player) {
-  const [text, delta] = TREASURY_EVENTS[Math.floor(Math.random() * TREASURY_EVENTS.length)];
+  const ev = TREASURY_EVENTS[Math.floor(Math.random() * TREASURY_EVENTS.length)];
+  const text = ev[0], delta = ev[1];
   player.money += delta;
   playSound(delta > 0 ? "money" : "error");
   addLog(`🎴 ${player.name} казна: ${delta >= 0 ? "+" : ""}${delta}$`);
@@ -933,7 +913,12 @@ function handleVPN(player) {
     addLog(`🌐 ${player.name} → ${BOARD_DATA[target].name}`);
     if (!player.isAI) {
       showModal(`<h3>🌐 VPN</h3><div class="modal-info">Телепорт на ${BOARD_DATA[target].name}</div>
-        <div class="modal-buttons"><button class="btn-primary" onclick="closeModal();updateUI();handleCell(state.players[state.currentPlayerIdx],${target})">[ OK ]</button></div>`);
+        <div class="modal-buttons"><button class="btn-primary" id="vpn-ok">[ OK ]</button></div>`);
+      document.getElementById("vpn-ok").onclick = () => {
+        closeModal();
+        updateUI();
+        handleCell(player, target);
+      };
     } else {
       updateUI();
       setTimeout(() => handleCell(player, target), 200);
@@ -977,9 +962,8 @@ function handleOpenSource(player) {
 
 // ==================== КОНЕЦ ХОДА ====================
 function finishTurn() {
-  if (state.gameOver) return;
+  if (!state || state.gameOver) return;
 
-  // Проверка банкротства
   for (const p of state.players) {
     if (p.money < 0) {
       const available = p.companies.filter(c => !state.mortgagedCells[c]);
@@ -999,13 +983,11 @@ function finishTurn() {
     }
   }
 
-  // Уменьшение DDoS
   for (const c in state.blockedCells) {
     state.blockedCells[c]--;
     if (state.blockedCells[c] <= 0) delete state.blockedCells[c];
   }
 
-  // История
   state.players.forEach(p => {
     state.balanceHistory[p.id].push(p.money);
     if (state.balanceHistory[p.id].length > 30) state.balanceHistory[p.id].shift();
@@ -1022,7 +1004,7 @@ function finishTurn() {
 }
 
 function checkAI() {
-  if (state.gameOver) return;
+  if (!state || state.gameOver) return;
   const p = state.players[state.currentPlayerIdx];
   if (p.isAI) {
     document.getElementById("roll-btn").disabled = true;
@@ -1072,7 +1054,7 @@ function backToMenu() {
 
 // ==================== SKIP ====================
 function skipTurn() {
-  if (state.gameOver || state.animating) return;
+  if (!state || state.gameOver || state.animating) return;
   const p = state.players[state.currentPlayerIdx];
   if (p.isAI) return;
   if (p.money < SKIP_COST) {
@@ -1101,7 +1083,8 @@ function closeModal() {
 
 // ==================== СТАТИСТИКА ====================
 function showStats() {
-  const tableRows = state.players.map((p, i) => {
+  if (!state) return;
+  const tableRows = state.players.map((p) => {
     const monos = Object.keys(SECTOR_COUNTS).filter(s => checkMonopoly(p.id, s)).length;
     return `<tr>
       <td style="color:${p.color}">${p.marker} ${p.name}</td>
@@ -1141,7 +1124,6 @@ function drawStatsChart() {
   });
   const range = maxVal - minVal || 1;
 
-  // Сетка
   ctx.strokeStyle = "#21262d";
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
@@ -1152,8 +1134,7 @@ function drawStatsChart() {
     ctx.fillText(`$${Math.round(maxVal - range * i / 4)}`, 2, y + 3);
   }
 
-  // Линии
-  state.players.forEach((p, idx) => {
+  state.players.forEach((p) => {
     const hist = state.balanceHistory[p.id];
     if (hist.length < 2) return;
     ctx.strokeStyle = p.color;
@@ -1184,8 +1165,7 @@ function loadGame() {
   try {
     const data = localStorage.getItem(SAVE_KEY);
     if (!data) return false;
-    const loaded = JSON.parse(data);
-    state = loaded;
+    state = JSON.parse(data);
     numPlayers = state.players.length;
     document.getElementById("menu-screen").classList.remove("active");
     document.getElementById("game-screen").classList.add("active");
@@ -1214,7 +1194,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (confirm("Вернуться в меню?")) backToMenu();
   });
 
-  // Автозагрузка
   if (localStorage.getItem(SAVE_KEY)) {
     setTimeout(() => {
       if (confirm("Найдено сохранение. Загрузить?")) loadGame();
@@ -1222,7 +1201,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// Глобальные для inline-обработчиков
 window.closeModal = closeModal;
 window.backToMenu = backToMenu;
 window.finishTurn = finishTurn;
