@@ -58,7 +58,7 @@ const HOUSE_COST = 100, HOTEL_COST = 300, SKIP_COST = 50;
 const SAVE_KEY = "it_monopoly_save";
 
 // Позиции клеток по периметру 8×8 (30 клеток)
-const GRID_POSITIONS = [];
+let GRID_POSITIONS = [];
 for (let i = 0; i < 8; i++) GRID_POSITIONS.push([7 - i, 7]);
 for (let i = 1; i < 7; i++) GRID_POSITIONS.push([0, 7 - i]);
 for (let i = 0; i < 8; i++) GRID_POSITIONS.push([i, 0]);
@@ -210,21 +210,27 @@ function startGame() {
 }
 
 // ==================== ДОСКА ====================
-function buildBoard() {
-  const board = document.getElementById("board");
-    // Защита: если GRID_POSITIONS потерялся — пересоздаём
-  if (typeof GRID_POSITIONS === "undefined" || !GRID_POSITIONS || GRID_POSITIONS.length !== 30) {
-    window.GRID_POSITIONS = [];
+function ensureGridPositions() {
+  // Защита: если массив потерялся или короче 30 — пересоздаём
+  if (typeof GRID_POSITIONS === "undefined" || !Array.isArray(GRID_POSITIONS) || GRID_POSITIONS.length !== 30) {
+    GRID_POSITIONS = [];
     for (let i = 0; i < 8; i++) GRID_POSITIONS.push([7 - i, 7]);
     for (let i = 1; i < 7; i++) GRID_POSITIONS.push([0, 7 - i]);
     for (let i = 0; i < 8; i++) GRID_POSITIONS.push([i, 0]);
     for (let i = 1; i < 7; i++) GRID_POSITIONS.push([7, i]);
   }
+}
+
+function buildBoard() {
+  ensureGridPositions();
+
+  const board = document.getElementById("board");
   board.innerHTML = "";
 
   for (let idx = 0; idx < 30; idx++) {
     const data = BOARD_DATA[idx];
     const pos = GRID_POSITIONS[idx];
+    if (!pos) continue; // на всякий случай
     const col = pos[0];
     const row = pos[1];
     const isService = ["start", "sandbox", "hackathon", "tax"].includes(data.type);
