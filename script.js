@@ -212,6 +212,14 @@ function startGame() {
 // ==================== ДОСКА ====================
 function buildBoard() {
   const board = document.getElementById("board");
+    // Защита: если GRID_POSITIONS потерялся — пересоздаём
+  if (typeof GRID_POSITIONS === "undefined" || !GRID_POSITIONS || GRID_POSITIONS.length !== 30) {
+    window.GRID_POSITIONS = [];
+    for (let i = 0; i < 8; i++) GRID_POSITIONS.push([7 - i, 7]);
+    for (let i = 1; i < 7; i++) GRID_POSITIONS.push([0, 7 - i]);
+    for (let i = 0; i < 8; i++) GRID_POSITIONS.push([i, 0]);
+    for (let i = 1; i < 7; i++) GRID_POSITIONS.push([7, i]);
+  }
   board.innerHTML = "";
 
   for (let idx = 0; idx < 30; idx++) {
