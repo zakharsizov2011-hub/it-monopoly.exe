@@ -1,4 +1,4 @@
-// ==================== ДАННЫЕ ====================
+// ==================== БАЗА ДАННЫХ ====================
 const BOARD_DATA = [
   { name: "🚀 СТАРТ", type: "start", color: "#2d3238", sector: "Служебная" },
   { name: "HONOR", type: "company", price: 100, rent: 25, color: "#1e90ff", sector: "Мобильный",
@@ -57,7 +57,6 @@ const PLAYER_MARKERS = ["🔴", "🔵", "🟢", "🟡"];
 const HOUSE_COST = 100, HOTEL_COST = 300, SKIP_COST = 50;
 const SAVE_KEY = "it_monopoly_save";
 
-// Позиции клеток по периметру 8×8 (30 клеток)
 let GRID_POSITIONS = [];
 for (let i = 0; i < 8; i++) GRID_POSITIONS.push([7 - i, 7]);
 for (let i = 1; i < 7; i++) GRID_POSITIONS.push([0, 7 - i]);
@@ -65,23 +64,23 @@ for (let i = 0; i < 8; i++) GRID_POSITIONS.push([i, 0]);
 for (let i = 1; i < 7; i++) GRID_POSITIONS.push([7, i]);
 
 const CHANCE_EVENTS = [
-  ["💾 Утечка данных в облаке! Штраф: −$150", -150],
-  ["🚀 Ваш стартап получил инвестиции: +$300", 300],
-  ["🐛 Критический баг найден вовремя: +$100", 100],
+  ["💾 Утечка данных! −$150", -150],
+  ["🚀 Инвестиции: +$300", 300],
+  ["🐛 Баг найден: +$100", 100],
   ["⚡ Сгорел сервер: −$200", -200],
-  ["🏅 Выиграли тендер: +$250", 250],
-  ["🔒 Взлом сайта: −$180", -180],
-  ["💡 Патент на изобретение: +$200", 200],
-  ["📉 Курс акций упал: −$120", -120],
+  ["🏅 Тендер: +$250", 250],
+  ["🔒 Взлом: −$180", -180],
+  ["💡 Патент: +$200", 200],
+  ["📉 Акции упали: −$120", -120],
 ];
 
 const TREASURY_EVENTS = [
   ["💰 Дивиденды: +$80", 80],
-  ["🧾 Налоговая проверка: −$100", -100],
-  ["🎁 Бонус за лояльность: +$60", 60],
-  ["🛠 Внеплановый рефакторинг: −$90", -90],
-  ["📈 Рост трафика: +$70", 70],
-  ["🔧 Замена оборудования: −$110", -110],
+  ["🧾 Налоговая: −$100", -100],
+  ["🎁 Бонус: +$60", 60],
+  ["🛠 Рефакторинг: −$90", -90],
+  ["📈 Трафик: +$70", 70],
+  ["🔧 Оборудование: −$110", -110],
 ];
 
 // ==================== СОСТОЯНИЕ ====================
@@ -94,6 +93,23 @@ let playerConfigs = [
   { name: "PLAYER_4", isAI: false },
 ];
 
+// ==================== ЗАЩИТА ОТ ОБРЕЗАННЫХ МАССИВОВ ====================
+function ensureData() {
+  while (BOARD_DATA.length < 30) {
+    BOARD_DATA.push({
+      name: "—", type: "empty", color: "#21262d", sector: "Служебная",
+      price: 0, rent: 0, q: "?", opts: ["A", "B", "C", "D"], ans: "A"
+    });
+  }
+  if (!Array.isArray(GRID_POSITIONS) || GRID_POSITIONS.length < 30) {
+    GRID_POSITIONS = [];
+    for (let i = 0; i < 8; i++) GRID_POSITIONS.push([7 - i, 7]);
+    for (let i = 1; i < 7; i++) GRID_POSITIONS.push([0, 7 - i]);
+    for (let i = 0; i < 8; i++) GRID_POSITIONS.push([i, 0]);
+    for (let i = 1; i < 7; i++) GRID_POSITIONS.push([7, i]);
+  }
+}
+
 // ==================== ЗВУКИ ====================
 function playSound(kind) {
   try {
@@ -101,12 +117,10 @@ function playSound(kind) {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.connect(g); g.connect(ctx.destination);
-    if (kind === "roll") { o.frequency.value = 600; o.start(); o.stop(ctx.currentTime + 0.08); }
-    else if (kind === "success") { o.frequency.value = 900; o.start(); o.stop(ctx.currentTime + 0.1); }
-    else if (kind === "error") { o.frequency.value = 300; o.start(); o.stop(ctx.currentTime + 0.2); }
-    else if (kind === "buy") { o.frequency.value = 800; o.start(); o.stop(ctx.currentTime + 0.08); }
-    else if (kind === "dice") { o.frequency.value = 500; o.start(); o.stop(ctx.currentTime + 0.03); }
-    else if (kind === "money") { o.frequency.value = 1100; o.start(); o.stop(ctx.currentTime + 0.05); }
+    const map = { roll: 600, success: 900, error: 300, buy: 800, dice: 500, money: 1100 };
+    o.frequency.value = map[kind] || 500;
+    o.start();
+    o.stop(ctx.currentTime + 0.1);
   } catch (e) {}
 }
 
@@ -122,12 +136,15 @@ function initMenu() {
     });
   });
   renderPlayerConfig();
-  document.getElementById("start-btn").addEventListener("click", startGame);
-  document.getElementById("help-btn").addEventListener("click", showHelp);
+  const startBtn = document.getElementById("start-btn");
+  const helpBtn = document.getElementById("help-btn");
+  if (startBtn) startBtn.addEventListener("click", startGame);
+  if (helpBtn) helpBtn.addEventListener("click", showHelp);
 }
 
 function renderPlayerConfig() {
   const container = document.getElementById("players-config");
+  if (!container) return;
   container.innerHTML = "";
   for (let i = 0; i < numPlayers; i++) {
     const row = document.createElement("div");
@@ -140,9 +157,8 @@ function renderPlayerConfig() {
       </label>
     `;
     container.appendChild(row);
-    row.querySelector(`#ai-${i}`).addEventListener("change", e => {
-      playerConfigs[i].isAI = e.target.checked;
-    });
+    const cb = row.querySelector(`#ai-${i}`);
+    if (cb) cb.addEventListener("change", e => { playerConfigs[i].isAI = e.target.checked; });
   }
 }
 
@@ -169,6 +185,7 @@ function showHelp() {
 }
 
 function startGame() {
+  ensureData();
   document.getElementById("menu-screen").classList.remove("active");
   document.getElementById("game-screen").classList.add("active");
 
@@ -210,34 +227,21 @@ function startGame() {
 }
 
 // ==================== ДОСКА ====================
-function ensureGridPositions() {
-  // Защита: если массив потерялся или короче 30 — пересоздаём
-  if (typeof GRID_POSITIONS === "undefined" || !Array.isArray(GRID_POSITIONS) || GRID_POSITIONS.length !== 30) {
-    GRID_POSITIONS = [];
-    for (let i = 0; i < 8; i++) GRID_POSITIONS.push([7 - i, 7]);
-    for (let i = 1; i < 7; i++) GRID_POSITIONS.push([0, 7 - i]);
-    for (let i = 0; i < 8; i++) GRID_POSITIONS.push([i, 0]);
-    for (let i = 1; i < 7; i++) GRID_POSITIONS.push([7, i]);
-  }
-}
-
 function buildBoard() {
-  ensureGridPositions();
-    // Защита: если BOARD_DATA короче 30 — дополняем заглушками
-  while (BOARD_DATA.length < 30) {
-    BOARD_DATA.push({ name: "—", type: "empty", color: "#21262d", sector: "Служебная" });
-  }
-
+  ensureData();
   const board = document.getElementById("board");
+  if (!board) return;
   board.innerHTML = "";
 
   for (let idx = 0; idx < 30; idx++) {
     const data = BOARD_DATA[idx];
+    if (!data) continue;
     const pos = GRID_POSITIONS[idx];
-    if (!pos) continue; // на всякий случай
+    if (!pos) continue;
+
     const col = pos[0];
     const row = pos[1];
-    const isService = ["start", "sandbox", "hackathon", "tax"].includes(data.type);
+    const isService = ["start", "sandbox", "hackathon", "tax", "empty"].includes(data.type);
 
     const cell = document.createElement("div");
     cell.className = "cell" + (isService ? " service" : "");
@@ -282,6 +286,7 @@ function buildBoard() {
 function renderPanels() {
   const left = document.getElementById("left-panel");
   const right = document.getElementById("right-panel");
+  if (!left || !right || !state) return;
   left.innerHTML = "";
   right.innerHTML = "";
 
@@ -307,12 +312,15 @@ function renderPanels() {
 
 // ==================== UI ====================
 function updateUI() {
-  if (!state) return;
+  if (!state || !state.players || state.players.length === 0) return;
   const cur = state.players[state.currentPlayerIdx];
+  if (!cur) return;
 
   const turnInfo = document.getElementById("turn-info");
-  turnInfo.textContent = `> T${state.turnNumber} | ${cur.marker} ${cur.name}`;
-  turnInfo.style.color = cur.color;
+  if (turnInfo) {
+    turnInfo.textContent = `> T${state.turnNumber} | ${cur.marker} ${cur.name}`;
+    turnInfo.style.color = cur.color;
+  }
 
   state.players.forEach((p, i) => {
     const card = document.getElementById(`player-card-${i}`);
@@ -320,53 +328,64 @@ function updateUI() {
     card.classList.toggle("active", i === state.currentPlayerIdx);
 
     const moneyEl = document.getElementById(`money-${i}`);
-    moneyEl.textContent = `$${p.money}`;
-    moneyEl.classList.toggle("negative", p.money < 0);
+    if (moneyEl) {
+      moneyEl.textContent = `$${p.money}`;
+      moneyEl.classList.toggle("negative", p.money < 0);
+    }
 
     const compEl = document.getElementById(`companies-${i}`);
-    if (p.companies.length) {
-      compEl.innerHTML = p.companies.map(c => {
-        const m = state.mortgagedCells[c] ? "🔒" : "·";
-        return `<div class="${state.mortgagedCells[c] ? "mortgaged" : ""}">${m} ${BOARD_DATA[c].name}</div>`;
-      }).join("");
-    } else {
-      compEl.textContent = "—";
+    if (compEl) {
+      if (p.companies.length) {
+        compEl.innerHTML = p.companies.map(c => {
+          const cellData = BOARD_DATA[c] || { name: "?" };
+          const m = state.mortgagedCells[c] ? "🔒" : "·";
+          return `<div class="${state.mortgagedCells[c] ? "mortgaged" : ""}">${m} ${cellData.name}</div>`;
+        }).join("");
+      } else {
+        compEl.textContent = "—";
+      }
     }
 
     const monos = Object.keys(SECTOR_COUNTS).filter(s => checkMonopoly(i, s));
     const monoEl = document.getElementById(`monopoly-${i}`);
-    monoEl.innerHTML = monos.length
-      ? monos.map(m => `<div style="color:#ffcc00">★ ${m}</div>`).join("")
-      : "—";
+    if (monoEl) {
+      monoEl.innerHTML = monos.length
+        ? monos.map(m => `<div style="color:#ffcc00">★ ${m}</div>`).join("")
+        : "—";
+    }
   });
 
   for (let idx = 0; idx < 30; idx++) {
     const cell = document.getElementById(`cell-${idx}`);
     if (!cell) continue;
     const data = BOARD_DATA[idx];
+    if (!data) continue;
 
     const tokensEl = cell.querySelector(".cell-tokens");
-    tokensEl.innerHTML = state.players.filter(p => p.pos === idx).map(p => p.marker).join("");
+    if (tokensEl) tokensEl.innerHTML = state.players.filter(p => p.pos === idx).map(p => p.marker).join("");
 
     const b = state.buildings[idx] || { houses: 0, hotels: 0 };
-    cell.querySelector(".cell-buildings").textContent = b.hotels > 0 ? "🏨" : (b.houses > 0 ? "🏠" : "");
+    const buildEl = cell.querySelector(".cell-buildings");
+    if (buildEl) buildEl.textContent = b.hotels > 0 ? "🏨" : (b.houses > 0 ? "🏠" : "");
 
     const ownerId = state.owners[idx];
     const ownerEl = cell.querySelector(".cell-owner");
-    if (ownerId !== undefined && ownerId !== null) {
-      const owner = state.players[ownerId];
-      const isM = !!state.mortgagedCells[idx];
-      cell.style.borderColor = owner.color;
-      cell.style.borderWidth = isM ? "1px" : "3px";
-      cell.style.background = isM ? "#1f1418" : "#1a2129";
-      ownerEl.textContent = isM ? `${owner.name} 🔒` : owner.name;
-      ownerEl.style.color = owner.color;
-    } else {
-      cell.style.borderColor = "#21262d";
-      cell.style.borderWidth = "2px";
-      cell.style.background = ["start", "sandbox", "hackathon", "tax"].includes(data.type) ? "#1a2129" : "#141a21";
-      ownerEl.textContent = data.type === "company" ? "free" : "";
-      ownerEl.style.color = "#6e7681";
+    if (ownerEl) {
+      if (ownerId !== undefined && ownerId !== null && state.players[ownerId]) {
+        const owner = state.players[ownerId];
+        const isM = !!state.mortgagedCells[idx];
+        cell.style.borderColor = owner.color;
+        cell.style.borderWidth = isM ? "1px" : "3px";
+        cell.style.background = isM ? "#1f1418" : "#1a2129";
+        ownerEl.textContent = isM ? `${owner.name} 🔒` : owner.name;
+        ownerEl.style.color = owner.color;
+      } else {
+        cell.style.borderColor = "#21262d";
+        cell.style.borderWidth = "2px";
+        cell.style.background = ["start", "sandbox", "hackathon", "tax", "empty"].includes(data.type) ? "#1a2129" : "#141a21";
+        ownerEl.textContent = data.type === "company" ? "free" : "";
+        ownerEl.style.color = "#6e7681";
+      }
     }
   }
 }
@@ -377,6 +396,7 @@ function addLog(msg) {
   state.gameLog.push(msg);
   if (state.gameLog.length > 100) state.gameLog.shift();
   const log = document.getElementById("log");
+  if (!log) return;
   log.innerHTML = state.gameLog.slice(-8).map(l => `<div>${l}</div>`).join("");
   log.scrollTop = log.scrollHeight;
 }
@@ -388,14 +408,16 @@ function getCellOwnerId(idx) {
 
 function checkMonopoly(playerId, sector) {
   if (["Служебная", "Спецклетка"].includes(sector)) return false;
+  if (!state.players[playerId]) return false;
   const owned = state.players[playerId].companies.filter(c =>
-    BOARD_DATA[c].sector === sector && !state.mortgagedCells[c]
+    BOARD_DATA[c] && BOARD_DATA[c].sector === sector && !state.mortgagedCells[c]
   ).length;
   return owned === SECTOR_COUNTS[sector];
 }
 
 function getRent(idx) {
   const cell = BOARD_DATA[idx];
+  if (!cell) return 0;
   const ownerId = getCellOwnerId(idx);
   if (ownerId === null || state.mortgagedCells[idx]) return 0;
   const b = state.buildings[idx] || { houses: 0, hotels: 0 };
@@ -415,7 +437,6 @@ function announceMonopoly(player, sector) {
         <h3>🌟 МОНОПОЛИЯ!</h3>
         <div class="modal-info">
           ${player.name} собрал монополию «${sector}»!<br><br>
-          Все ${SECTOR_COUNTS[sector]} компаний сектора теперь ваши.<br>
           Аренда ×2, доступно строительство!
         </div>
         <div class="modal-buttons">
@@ -429,10 +450,9 @@ function announceMonopoly(player, sector) {
 // ==================== КУБИК ====================
 function animateDice(frame) {
   const canvas = document.getElementById("dice-canvas");
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
-  const size = 100;
-  const cx = size / 2, cy = size / 2;
-  const r = size / 2 - 10;
+  const size = 100, cx = 50, cy = 50, r = 40;
 
   ctx.clearRect(0, 0, size, size);
 
@@ -491,15 +511,19 @@ function drawDiceFace(ctx, cx, cy, r, value) {
 // ==================== БРОСОК ====================
 function rollDice() {
   if (!state || state.gameOver || state.animating) return;
-  if (state.players[state.currentPlayerIdx].isAI) return;
-  document.getElementById("roll-btn").disabled = true;
-  document.getElementById("skip-btn").disabled = true;
+  if (!state.players[state.currentPlayerIdx] || state.players[state.currentPlayerIdx].isAI) return;
+  const rollBtn = document.getElementById("roll-btn");
+  const skipBtn = document.getElementById("skip-btn");
+  if (rollBtn) rollBtn.disabled = true;
+  if (skipBtn) skipBtn.disabled = true;
   state.diceValue = Math.floor(Math.random() * 6) + 1;
   animateDice(0);
 }
 
 function finishRoll() {
+  if (!state) return;
   const p = state.players[state.currentPlayerIdx];
+  if (!p) return;
   const dice = state.diceValue;
   addLog(`[T${state.turnNumber}] ${p.marker} ${p.name} → ${dice}`);
 
@@ -513,6 +537,7 @@ function finishRoll() {
 }
 
 function moveStep(player, current, remaining, passedStart) {
+  if (!state) return;
   if (remaining <= 0) {
     state.animating = false;
     if (passedStart) {
@@ -521,7 +546,7 @@ function moveStep(player, current, remaining, passedStart) {
       playSound("success");
     }
     const cellIdx = player.pos;
-    addLog(`📍 ${player.name} → ${BOARD_DATA[cellIdx].name}`);
+    addLog(`📍 ${player.name} → ${BOARD_DATA[cellIdx]?.name || "?"}`);
     updateUI();
     setTimeout(() => handleCell(player, cellIdx), 200);
     return;
@@ -536,6 +561,7 @@ function moveStep(player, current, remaining, passedStart) {
 function handleCell(player, cellIdx) {
   if (!state || state.gameOver) return;
   const cell = BOARD_DATA[cellIdx];
+  if (!cell) { finishTurn(); return; }
 
   switch (cell.type) {
     case "company": handleCompany(player, cellIdx, cell); break;
@@ -638,6 +664,7 @@ function handleCompany(player, cellIdx, cell) {
       return;
     }
     const owner = state.players[ownerId];
+    if (!owner) { finishTurn(); return; }
 
     if (player.isAI) {
       player.money -= base;
@@ -653,7 +680,7 @@ function handleCompany(player, cellIdx, cell) {
         ${cell.name}<br>
         Владелец: ${owner.name}<br>
         Аренда: $${base}<br><br>
-        Запустить пентест (риск)?
+        Запустить пентест?
       </div>
       <div class="modal-buttons">
         <button class="btn-primary" id="rent-pentest">[ ПЕНТЕСТ ] ✓ $${Math.floor(base / 2)} / ✗ $${base * 2}</button>
@@ -671,7 +698,7 @@ function handleCompany(player, cellIdx, cell) {
         } else if (result === false) {
           final = base * 2;
           playSound("error");
-          const correct = cell.opts.find(o => o.startsWith(cell.ans));
+          const correct = cell.opts.find(o => o.startsWith(cell.ans)) || "?";
           addLog(`🚨 ${player.name} пентест ✗ → $${final}`);
           showModal(`
             <h3>✗ ПРОВАЛ</h3>
@@ -753,7 +780,7 @@ function showPurchaseDialog(player, cellIdx, cell) {
         player.companies.push(cellIdx);
         state.owners[cellIdx] = player.id;
         addLog(`❌ ${player.name} → ${cell.name} $${penalty}`);
-        const correct = cell.opts.find(o => o.startsWith(cell.ans));
+        const correct = cell.opts.find(o => o.startsWith(cell.ans)) || "?";
         showModal(`<h3>✗ ОШИБКА!</h3><div class="modal-info">Принудительная покупка: $${penalty}<br><br>Правильно: ${correct}</div>
           <div class="modal-buttons"><button class="btn-secondary" onclick="closeModal()">[ OK ]</button></div>`);
         announceMonopoly(player, cell.sector);
@@ -845,12 +872,11 @@ function showBuildDialog(player, cellIdx, cell, b) {
 
 function handleChance(player) {
   const ev = CHANCE_EVENTS[Math.floor(Math.random() * CHANCE_EVENTS.length)];
-  const text = ev[0], delta = ev[1];
-  player.money += delta;
-  playSound(delta > 0 ? "money" : "error");
-  addLog(`🎴 ${player.name} шанс: ${delta >= 0 ? "+" : ""}${delta}$`);
+  player.money += ev[1];
+  playSound(ev[1] > 0 ? "money" : "error");
+  addLog(`🎴 ${player.name} шанс: ${ev[1] >= 0 ? "+" : ""}${ev[1]}$`);
   if (!player.isAI) {
-    showModal(`<h3>🎴 ШАНС</h3><div class="modal-info">${text}<br><br>${delta >= 0 ? "+" : ""}${delta}$</div>
+    showModal(`<h3>🎴 ШАНС</h3><div class="modal-info">${ev[0]}<br><br>${ev[1] >= 0 ? "+" : ""}${ev[1]}$</div>
       <div class="modal-buttons"><button class="btn-primary" onclick="closeModal();finishTurn()">[ OK ]</button></div>`);
   } else {
     finishTurn();
@@ -859,12 +885,11 @@ function handleChance(player) {
 
 function handleTreasury(player) {
   const ev = TREASURY_EVENTS[Math.floor(Math.random() * TREASURY_EVENTS.length)];
-  const text = ev[0], delta = ev[1];
-  player.money += delta;
-  playSound(delta > 0 ? "money" : "error");
-  addLog(`🎴 ${player.name} казна: ${delta >= 0 ? "+" : ""}${delta}$`);
+  player.money += ev[1];
+  playSound(ev[1] > 0 ? "money" : "error");
+  addLog(`🎴 ${player.name} казна: ${ev[1] >= 0 ? "+" : ""}${ev[1]}$`);
   if (!player.isAI) {
-    showModal(`<h3>🎴 КАЗНА</h3><div class="modal-info">${text}<br><br>${delta >= 0 ? "+" : ""}${delta}$</div>
+    showModal(`<h3>🎴 КАЗНА</h3><div class="modal-info">${ev[0]}<br><br>${ev[1] >= 0 ? "+" : ""}${ev[1]}$</div>
       <div class="modal-buttons"><button class="btn-primary" onclick="closeModal();finishTurn()">[ OK ]</button></div>`);
   } else {
     finishTurn();
@@ -923,7 +948,7 @@ function handleSandbox(player) {
 
 function handleVPN(player) {
   const free = BOARD_DATA.map((c, i) => i).filter(i =>
-    BOARD_DATA[i].type === "company" && getCellOwnerId(i) === null
+    BOARD_DATA[i] && BOARD_DATA[i].type === "company" && getCellOwnerId(i) === null
   );
   if (free.length) {
     const target = free[Math.floor(Math.random() * free.length)];
@@ -991,10 +1016,10 @@ function finishTurn() {
       }
       if (p.isAI) {
         for (const c of available) {
-          const val = Math.floor(BOARD_DATA[c].price / 2);
+          const val = Math.floor((BOARD_DATA[c]?.price || 0) / 2);
           p.money += val;
           state.mortgagedCells[c] = true;
-          addLog(`[AI] залог ${BOARD_DATA[c].name} +$${val}`);
+          addLog(`[AI] залог ${BOARD_DATA[c]?.name || "?"} +$${val}`);
           if (p.money >= 0) break;
         }
       }
@@ -1007,6 +1032,7 @@ function finishTurn() {
   }
 
   state.players.forEach(p => {
+    if (!state.balanceHistory[p.id]) state.balanceHistory[p.id] = [1000];
     state.balanceHistory[p.id].push(p.money);
     if (state.balanceHistory[p.id].length > 30) state.balanceHistory[p.id].shift();
   });
@@ -1014,8 +1040,10 @@ function finishTurn() {
   state.currentPlayerIdx = (state.currentPlayerIdx + 1) % state.players.length;
   state.turnNumber++;
   updateUI();
-  document.getElementById("roll-btn").disabled = false;
-  document.getElementById("skip-btn").disabled = false;
+  const rollBtn = document.getElementById("roll-btn");
+  const skipBtn = document.getElementById("skip-btn");
+  if (rollBtn) rollBtn.disabled = false;
+  if (skipBtn) skipBtn.disabled = false;
   saveGame(true);
 
   setTimeout(checkAI, 800);
@@ -1024,9 +1052,12 @@ function finishTurn() {
 function checkAI() {
   if (!state || state.gameOver) return;
   const p = state.players[state.currentPlayerIdx];
+  if (!p) return;
   if (p.isAI) {
-    document.getElementById("roll-btn").disabled = true;
-    document.getElementById("skip-btn").disabled = true;
+    const rollBtn = document.getElementById("roll-btn");
+    const skipBtn = document.getElementById("skip-btn");
+    if (rollBtn) rollBtn.disabled = true;
+    if (skipBtn) skipBtn.disabled = true;
     setTimeout(() => {
       state.diceValue = Math.floor(Math.random() * 6) + 1;
       animateDice(0);
@@ -1036,10 +1067,11 @@ function checkAI() {
 
 function endGame(winnerIds) {
   state.gameOver = true;
-  document.getElementById("roll-btn").disabled = true;
+  const rollBtn = document.getElementById("roll-btn");
+  if (rollBtn) rollBtn.disabled = true;
   playSound("win");
 
-  const winners = winnerIds.map(id => state.players[id]);
+  const winners = winnerIds.map(id => state.players[id]).filter(Boolean);
   const text = winners.map(w => `🏆 ${w.marker} ${w.name}`).join("<br>");
   const stats = state.players.map(p =>
     `${p.marker} ${p.name}: $${p.money} (${p.companies.length} комп.)`
@@ -1057,6 +1089,7 @@ function endGame(winnerIds) {
 }
 
 function restartGame() {
+  if (!state) return;
   const configs = state.players.map(p => ({ name: p.name, isAI: p.isAI }));
   numPlayers = configs.length;
   playerConfigs = configs;
@@ -1074,7 +1107,7 @@ function backToMenu() {
 function skipTurn() {
   if (!state || state.gameOver || state.animating) return;
   const p = state.players[state.currentPlayerIdx];
-  if (p.isAI) return;
+  if (!p || p.isAI) return;
   if (p.money < SKIP_COST) {
     showModal(`<h3>!</h3><div class="modal-info">Нужно $${SKIP_COST} для пропуска</div>
       <div class="modal-buttons"><button class="btn-secondary" onclick="closeModal()">[ OK ]</button></div>`);
@@ -1091,12 +1124,14 @@ function skipTurn() {
 function showModal(html) {
   const overlay = document.getElementById("modal-overlay");
   const box = document.getElementById("modal-box");
+  if (!overlay || !box) return;
   box.innerHTML = html;
   overlay.classList.add("active");
 }
 
 function closeModal() {
-  document.getElementById("modal-overlay").classList.remove("active");
+  const overlay = document.getElementById("modal-overlay");
+  if (overlay) overlay.classList.remove("active");
 }
 
 // ==================== СТАТИСТИКА ====================
@@ -1130,10 +1165,9 @@ function showStats() {
 
 function drawStatsChart() {
   const canvas = document.getElementById("stats-canvas");
-  if (!canvas) return;
+  if (!canvas || !state) return;
   const ctx = canvas.getContext("2d");
   const w = canvas.width, h = canvas.height;
-
   ctx.clearRect(0, 0, w, h);
 
   let maxVal = 1000, minVal = 0;
@@ -1154,7 +1188,7 @@ function drawStatsChart() {
 
   state.players.forEach((p) => {
     const hist = state.balanceHistory[p.id];
-    if (hist.length < 2) return;
+    if (!hist || hist.length < 2) return;
     ctx.strokeStyle = p.color;
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -1169,11 +1203,12 @@ function drawStatsChart() {
 
 // ==================== СОХРАНЕНИЕ ====================
 function saveGame(silent) {
+  if (!state) return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
     if (!silent) {
       playSound("buy");
-      showModal(`<h3>💾 SAVED</h3><div class="modal-info">Игра сохранена в localStorage</div>
+      showModal(`<h3>💾 SAVED</h3><div class="modal-info">Игра сохранена</div>
         <div class="modal-buttons"><button class="btn-primary" onclick="closeModal()">[ OK ]</button></div>`);
     }
   } catch (e) {}
@@ -1200,17 +1235,17 @@ function loadGame() {
 document.addEventListener("DOMContentLoaded", () => {
   initMenu();
 
-  document.getElementById("roll-btn").addEventListener("click", rollDice);
-  document.getElementById("skip-btn").addEventListener("click", skipTurn);
-  document.getElementById("stats-btn").addEventListener("click", showStats);
-  document.getElementById("help-game-btn").addEventListener("click", showHelp);
-  document.getElementById("save-btn").addEventListener("click", () => saveGame(false));
-  document.getElementById("reset-btn").addEventListener("click", () => {
-    if (confirm("Начать заново? Прогресс будет потерян.")) restartGame();
-  });
-  document.getElementById("menu-btn").addEventListener("click", () => {
-    if (confirm("Вернуться в меню?")) backToMenu();
-  });
+  const bind = (id, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", fn);
+  };
+  bind("roll-btn", rollDice);
+  bind("skip-btn", skipTurn);
+  bind("stats-btn", showStats);
+  bind("help-game-btn", showHelp);
+  bind("save-btn", () => saveGame(false));
+  bind("reset-btn", () => { if (confirm("Начать заново?")) restartGame(); });
+  bind("menu-btn", () => { if (confirm("Вернуться в меню?")) backToMenu(); });
 
   if (localStorage.getItem(SAVE_KEY)) {
     setTimeout(() => {
